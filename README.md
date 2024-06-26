@@ -51,6 +51,7 @@ Dataset link - https://www.kaggle.com/datasets/anshtanwar/top-200-trending-books
 
 ### DEMO VIDEO
 
-  
+  [![Watch the video](https://img.youtube.com/vi/VUoKC0wAGns/0.jpg)](https://youtu.be/VUoKC0wAGns))
+
 
    
