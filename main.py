@@ -2,6 +2,7 @@ import pandas as pd
 from fastapi import FastAPI, Query, HTTPException
 from transformers import pipeline
 import logging
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +43,14 @@ context_chunks = generate_context_chunks(df)
 
 # Function to handle book recommendations
 def get_book_recommendations(query, context_chunks):
+    if re.match(r'top 100 books', query, re.IGNORECASE):
+        return df.head(100).to_dict(orient="records")
+    genre_match = re.match(r'top 10 books in (.+)', query, re.IGNORECASE)
+    if genre_match:
+        genre = genre_match.group(1)
+        genre_books = df[df['genre'].str.contains(genre, case=False, na=False)]
+        return genre_books.head(10).to_dict(orient="records")
+    
     results = []
     for chunk in context_chunks:
         response = qa_pipeline(question=query, context=chunk)
@@ -49,48 +58,13 @@ def get_book_recommendations(query, context_chunks):
             results.append(response['answer'])
     return results
 
-@app.get("/top_100_books")
-def get_top_100_books():
-    try:
-        return df.to_dict(orient="records")
-    except Exception as e:
-        logger.error(f"Error fetching top 100 books: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching top 100 books.")
-
-@app.get("/top_10_books/{genre}")
-def get_top_10_books(genre: str):
-    try:
-        genre_books = df[df['genre'].str.contains(genre, case=False, na=False)]
-        top_10_books = genre_books.head(10).to_dict(orient="records")
-        if not top_10_books:
-            raise HTTPException(status_code=404, detail="No books found for the specified genre.")
-        return top_10_books
-    except Exception as e:
-        logger.error(f"Error fetching top 10 books for genre {genre}: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching top 10 books.")
-
-@app.get("/book/{title}")
-def get_book(title: str):
-    try:
-        book = df[df['book_title'].str.contains(title, case=False, na=False)].to_dict(orient="records")
-        if not book:
-            raise HTTPException(status_code=404, detail="Book not found.")
-        return book
-    except Exception as e:
-        logger.error(f"Error fetching book with title {title}: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching book.")
-
-@app.get("/close_task")
-def close_task():
-    return {"message": "Thank you for using the book recommendation agent!"}
-
 @app.get("/ask_book_recommendation")
 def ask_book_recommendation(query: str = Query(..., description="Ask about top books")):
     try:
-        answers = get_book_recommendations(query, context_chunks)
-        if not answers:
+        recommendations = get_book_recommendations(query, context_chunks)
+        if not recommendations:
             raise HTTPException(status_code=404, detail="No relevant books found.")
-        return {"recommendations": answers}
+        return {"recommendations": recommendations}
     except Exception as e:
         logger.error(f"Error in book recommendation endpoint: {e}")
         raise HTTPException(status_code=500, detail="Error processing book recommendation query.")
