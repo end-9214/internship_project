@@ -3,11 +3,9 @@ from fastapi import FastAPI, Query, HTTPException
 from transformers import pipeline
 import logging
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load and preprocess the dataset
 try:
     df = pd.read_csv('/workspaces/codespaces-blank/Top-100 Trending Books.csv')
     df = df.dropna()
@@ -17,13 +15,10 @@ except Exception as e:
     logger.error(f"Error loading dataset: {e}")
     raise e
 
-# Initialize the FastAPI app
 app = FastAPI()
 
-# Initialize the question-answering pipeline
 qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
 
-# Function to generate context chunks from the dataset
 def generate_context_chunks(df, chunk_size=1000):
     context_chunks = []
     current_chunk = ""
@@ -40,7 +35,6 @@ def generate_context_chunks(df, chunk_size=1000):
 
 context_chunks = generate_context_chunks(df)
 
-# Function to handle book recommendations
 def get_book_recommendations(query, context_chunks):
     results = []
     for chunk in context_chunks:
