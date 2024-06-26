@@ -2,7 +2,6 @@ import pandas as pd
 from fastapi import FastAPI, Query, HTTPException
 from transformers import pipeline
 import logging
-import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,14 +42,6 @@ context_chunks = generate_context_chunks(df)
 
 # Function to handle book recommendations
 def get_book_recommendations(query, context_chunks):
-    if re.match(r'top 100 books', query, re.IGNORECASE):
-        return df.head(100).to_dict(orient="records")
-    genre_match = re.match(r'top 10 books in (.+)', query, re.IGNORECASE)
-    if genre_match:
-        genre = genre_match.group(1)
-        genre_books = df[df['genre'].str.contains(genre, case=False, na=False)]
-        return genre_books.head(10).to_dict(orient="records")
-    
     results = []
     for chunk in context_chunks:
         response = qa_pipeline(question=query, context=chunk)
@@ -61,9 +52,16 @@ def get_book_recommendations(query, context_chunks):
 @app.get("/ask_book_recommendation")
 def ask_book_recommendation(query: str = Query(..., description="Ask about top books")):
     try:
-        recommendations = get_book_recommendations(query, context_chunks)
-        if not recommendations:
+        answers = get_book_recommendations(query, context_chunks)
+        if not answers:
             raise HTTPException(status_code=404, detail="No relevant books found.")
+        recommendations = []
+        for answer in answers:
+            matched_books = df[df['book_title'].str.contains(answer, case=False, na=False)]
+            if not matched_books.empty:
+                recommendations.extend(matched_books.to_dict(orient="records"))
+        if not recommendations:
+            raise HTTPException(status_code=404, detail="No relevant books found in the dataset.")
         return {"recommendations": recommendations}
     except Exception as e:
         logger.error(f"Error in book recommendation endpoint: {e}")
