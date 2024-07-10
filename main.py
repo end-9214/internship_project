@@ -2,13 +2,12 @@ from fastapi import FastAPI, HTTPException
 import pandas as pd
 from pydantic import BaseModel
 
-# Load the dataset
+
 df = pd.read_csv('/workspaces/internship_project/Top-100 Trending Books.csv')
 df = df.dropna()
 
 app = FastAPI()
 
-# Pydantic model for the response
 class Book(BaseModel):
     book_title: str
     author: str

@@ -3,13 +3,10 @@ import requests
 
 st.title("Book Recommendation System")
 
-# Initialize session state
 if "recommendations" not in st.session_state:
     st.session_state.recommendations = []
 if "selected_book" not in st.session_state:
     st.session_state.selected_book = None
-
-# Selection for Genre Browsing
 st.write("""
 ### Browse books by genre
 """)
