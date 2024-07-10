@@ -1,62 +1,46 @@
+from fastapi import FastAPI, HTTPException
 import pandas as pd
-from fastapi import FastAPI, Query, HTTPException
-from transformers import pipeline
-import logging
+from pydantic import BaseModel
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-try:
-    df = pd.read_csv('/workspaces/codespaces-blank/Top-100 Trending Books.csv')
-    df = df.dropna()
-    df['book_title'] = df['book_title'].str.strip()
-    logger.info("Dataset loaded and preprocessed successfully.")
-except Exception as e:
-    logger.error(f"Error loading dataset: {e}")
-    raise e
+# Load the dataset
+df = pd.read_csv('/workspaces/internship_project/Top-100 Trending Books.csv')
+df = df.dropna()
 
 app = FastAPI()
 
-qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
+# Pydantic model for the response
+class Book(BaseModel):
+    book_title: str
+    author: str
+    genre: str
+    rating: float
+    book_price: float
+    year_of_publication: int
 
-def generate_context_chunks(df, chunk_size=1000):
-    context_chunks = []
-    current_chunk = ""
-    for index, row in df.iterrows():
-        book_info = f"Title: {row['book_title']}, Author: {row['author']}, Genre: {row['genre']}, Rating: {row['rating']}, Price: ${row['book_price']}, Year: {row['year_of_publication']}\n"
-        if len(current_chunk) + len(book_info) > chunk_size:
-            context_chunks.append(current_chunk)
-            current_chunk = book_info
-        else:
-            current_chunk += book_info
-    if current_chunk:
-        context_chunks.append(current_chunk)
-    return context_chunks
+@app.get("/top_100_books", response_model=list[Book])
+def get_top_100_books(genre: str):
+    filtered_df = df[df['genre'].str.contains(genre, case=False, na=False)]
+    top_100_books = filtered_df.head(100).to_dict(orient='records')
+    if not top_100_books:
+        raise HTTPException(status_code=404, detail="No books found for the specified genre.")
+    return top_100_books
 
-context_chunks = generate_context_chunks(df)
+@app.get("/top_10_books", response_model=list[Book])
+def get_top_10_books(genre: str):
+    filtered_df = df[df['genre'].str.contains(genre, case=False, na=False)]
+    top_10_books = filtered_df.head(10).to_dict(orient='records')
+    if not top_10_books:
+        raise HTTPException(status_code=404, detail="No books found for the specified genre.")
+    return top_10_books
 
-def get_book_recommendations(query, context_chunks):
-    results = []
-    for chunk in context_chunks:
-        response = qa_pipeline(question=query, context=chunk)
-        if response['answer'] not in results:
-            results.append(response['answer'])
-    return results
+@app.get("/select_book", response_model=Book)
+def select_book(title: str):
+    filtered_df = df[df['book_title'].str.contains(title, case=False, na=False)]
+    if filtered_df.empty:
+        raise HTTPException(status_code=404, detail="Book not found.")
+    selected_book = filtered_df.iloc[0].to_dict()
+    return selected_book
 
-@app.get("/ask_book_recommendation")
-def ask_book_recommendation(query: str = Query(..., description="Ask about top books")):
-    try:
-        answers = get_book_recommendations(query, context_chunks)
-        if not answers:
-            raise HTTPException(status_code=404, detail="No relevant books found.")
-        recommendations = []
-        for answer in answers:
-            matched_books = df[df['book_title'].str.contains(answer, case=False, na=False)]
-            if not matched_books.empty:
-                recommendations.extend(matched_books.to_dict(orient="records"))
-        if not recommendations:
-            raise HTTPException(status_code=404, detail="No relevant books found in the dataset.")
-        return {"recommendations": recommendations}
-    except Exception as e:
-        logger.error(f"Error in book recommendation endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Error processing book recommendation query.")
+@app.get("/close_task")
+def close_task():
+    return {"message": "Thank you for using the book recommendation agent!"}
